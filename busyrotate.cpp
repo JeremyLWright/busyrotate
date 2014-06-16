@@ -15,16 +15,33 @@
 #define EVENT_BUF_LEN     ( 1024 * ( EVENT_SIZE + 16 ) )
 
 
-size_t dir_size(std::string directory)
+size_t file_size(std::string f)
+{
+    struct stat sb;
+    int exists;
+    size_t total_size = 0;
+    exists = stat(f.c_str(), &sb);
+    if (exists < 0) {
+        std::cerr << "Couldn't stat " << f << '\n';
+    } else {
+        total_size = sb.st_size;
+    }
+    std::cout << f << " size " << total_size << '\n';
+    return total_size;
+}
+
+size_t dir_size(std::string dir)
 {
 
     DIR *d;
     struct dirent *de;
-    struct stat buf;
-    int exists;
     size_t total_size;
+    struct dirent entry;
+    if(dir == ".." || dir == ".")
+        return 0;
 
-    d = opendir(directory.c_str());
+    std::cout << "Dir: " << dir << "\n";
+    d = opendir(dir.c_str());
     if (d == NULL) {
         perror("prsize");
         exit(1);
@@ -32,15 +49,20 @@ size_t dir_size(std::string directory)
 
     total_size = 0;
 
-    for (de = readdir(d); de != NULL; de = readdir(d)) {
-        exists = stat(de->d_name, &buf);
-        if (exists < 0) {
-            fprintf(stderr, "Couldn't stat %s\n", de->d_name);
-        } else {
-            total_size += buf.st_size;
+    for(readdir_r(d, &entry, &de); de != NULL; readdir_r(d, &entry, &de))
+    {
+        switch(de->d_type)
+        {
+            case DT_DIR:
+                total_size += dir_size(de->d_name);
+                break;
+            case DT_REG:
+                total_size += file_size(dir + "/" + std::string(de->d_name));
+                break;
         }
     }
     closedir(d);
+    std::cout << dir << " size " << total_size << '\n';
     return total_size;
 }
 
@@ -96,20 +118,6 @@ struct inotify_fd {
 
 };
 
-size_t file_size(std::string f)
-{
-    struct stat sb;
-    int exists;
-    size_t total_size = 0;
-    exists = stat(f.c_str(), &sb);
-    if (exists < 0) {
-        std::cerr << "Couldn't stat " << f << '\n';
-    } else {
-        total_size = sb.st_size;
-    }
-    std::cout << f << " size " << total_size << '\n';
-    return total_size;
-}
 
 void rotate(std::string dir)
 {
@@ -141,8 +149,13 @@ int main(int argc, char const * argv[])
 
         if(file_size(filename) > max_file_size)
         {
-            std::cout << "Directory is too big. Rotating\n";
+            std::cout << "File is too big. Rotating\n";
             rotate(dir);
+        }
+        if(dir_size(dir) > maximum_size)
+        {
+            std::cout << "Directory is too big. Rotating\n";
+            delete_oldest(dir);
         }
     }
 }
