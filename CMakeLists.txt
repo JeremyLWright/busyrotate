@@ -37,3 +37,6 @@ add_dependencies(test googletest)
 target_link_libraries(test
     gtest_main)
 
+enable_testing()
+add_test(busyrotate_tests test)
+
