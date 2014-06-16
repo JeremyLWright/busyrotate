@@ -1,4 +1,3 @@
-/*This is the sample program to notify us for the file creation and file deletion takes place in “/tmp” directory*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -10,10 +9,11 @@
 #include <sys/stat.h>
 #include <iostream>
 #include <string>
+#include <queue>
+#include "log_pattern.hpp"
 
 #define EVENT_SIZE  ( sizeof (struct inotify_event) )
 #define EVENT_BUF_LEN     ( 1024 * ( EVENT_SIZE + 16 ) )
-
 
 size_t file_size(std::string f)
 {
@@ -118,6 +118,20 @@ struct inotify_fd {
 
 };
 
+
+/**
+ * Files are ordered by log.XXX.YYY where XXX is the boot count and YYY is the sequence number
+ * Files are rotated by incrementing the YYY within a single boot count.
+ * The oldest file is then the least XXX and the least YYY
+ *
+ * busyrotate assumes the system time is corrupt, and starts over at each
+ * power cycle.
+ */
+std::string find_oldest_file(std::string dir)
+{
+    std::queue<log_pattern> logs;
+    return ""; 
+}
 
 void rotate(std::string dir)
 {
