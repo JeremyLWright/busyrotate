@@ -7,6 +7,5 @@ script:
     - cd build
     - cmake ..
     - make
-after_script:
     - make test
 

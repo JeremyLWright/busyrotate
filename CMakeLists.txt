@@ -32,11 +32,13 @@ ExternalProject_Get_Property(googletest binary_dir)
 link_directories(${binary_dir})
 
 file(GLOB test_srcs "test/*.cpp")
-add_executable(test ${test_srcs})
-add_dependencies(test googletest)
-target_link_libraries(test
-    gtest_main)
+add_executable(tests ${test_srcs})
+add_dependencies(tests googletest)
+target_link_libraries(tests
+    gtest_main
+    gtest
+    pthread)
 
 enable_testing()
-add_test(busyrotate_tests test)
+add_test(busyrotate_tests tests)
 
