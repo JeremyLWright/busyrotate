@@ -1,7 +1,7 @@
-busyrotate
+busyrotate [![Build Status](https://travis-ci.org/jwright85/busyrotate.svg?branch=master)](https://travis-ci.org/jwright85/busyrotate)
 ==========
 
-Trivially simple log rotate scheme for busy box. 
+Trivially simple log rotate scheme for busy box.
 
 Example
 =======
