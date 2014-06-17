@@ -80,6 +80,12 @@ struct inotify_fd {
             perror( "inotify_init" );
         }
 
+        //busybox syslog opens and closes the log file once per second. This
+        //allows one to delete the log file, and syslog will create a new one.
+        //This introduces a race condition for us. If we just rotated out the
+        //file, syslog hasn't create the new log file yet. We don't want to
+        //create the file, since syslog is really responsible for doing so.
+        //Instead we wait for the file to be created.
         while(wd < 0)
         {
             wd = inotify_add_watch( fd, filename.c_str(), flags);
