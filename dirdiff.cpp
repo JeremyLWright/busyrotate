@@ -74,9 +74,10 @@ int main(int argc, const char *argv[])
     }
     std::vector<std::string> diff(std::max(d1, d2));
 
-    it = std::set_symmetric_difference(std::begin(d1), std::end(d1),
+    it = std::set_difference(std::begin(d1), std::end(d1),
                 std::begin(d2), std::end(d2), std::begin(diff));
 
+    diff.resize(it-diff.begin());
     std::cout << "Diff\n";
     for(auto& v : diff)
     {
