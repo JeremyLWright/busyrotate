@@ -19,7 +19,7 @@ size_t dir_size(std::string dir)
 
     d = opendir(dir.c_str());
     if (d == NULL) {
-        perror("prsize");
+        perror("dir_size");
         exit(1);
     }
 

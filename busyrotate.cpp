@@ -14,7 +14,7 @@
 #include "inotify_fd.hpp"
 #include "rotateutils.hpp"
 #include <algorithm>
-
+#include <unistd.h>
 
 
 
@@ -72,18 +72,75 @@ void delete_oldest(std::string dir)
     remove((dir+"/"+f.name()).c_str());
 }
 
-int main(int argc, char const * argv[])
+void help(std::ostream& o)
 {
+    o << "Usage: busyrotate [OPTIONS]\n";
+    o << "\n";
+    o << "System log rotation utility\n";
+    o << "\n";
+    o << "	-O DIR		Directory to manage. (default:/var/log/messages)\n";
+    o << "	-s SIZE		Max size (KB) of file before rotation. (default: 200KB)\n";
+    o << "	-d SIZE		Max size (KB) of directory before rotation. (default: 2000KB)\n";
+    o << "\t-n NUM      \tNumber to identify this boot count. (required)\n";
+    o << "	-f          \tRotate a single file and exit.\n";
+    o << "\n";
+    o << "Example\n";
+    o << "# Manage the /var/log/messages directory rotate. Rotate files on 10 MB, and keep directory under 256 MB\n";
+    o << "busyrotate -O /var/log/messages -b 262144 -s 10240 -n $BOOT_COUNT &\n";
+    o << "\n";
+    o << "# Rotate a single log with the given boot count\n";
+    o << "busyrotate -O /var/log/messages -n $BOOT_COUNT -f \n";
+}
 
-    std::string const dir(argv[1]);
-    size_t const max_dir_size = std::stoi(argv[2]);
-    size_t const max_file_size = std::stoi(argv[3]);
+int main(int argc, char * const argv[])
+{
+    std::string dir("/var/log/messages");
 
+    size_t max_dir_size = 2000*1024;
+    size_t max_file_size = 200*1024;
 
     if(max_dir_size < max_file_size)
         throw std::logic_error("Files size are inconsistant. max_dir must be > max_file");
 
-    size_t const boot_count = std::stoi(argv[4]);
+    size_t boot_count = 0;
+    bool boot_count_set = false;
+    bool single_rotate_mode = false;
+    int opt;
+    const char * opts = "O:s:d:n:f";
+    while((opt = getopt(argc, argv, opts)) != -1)
+    {
+        switch(opt)
+        {
+            case 'O':
+                dir = std::string(optarg);
+                break;
+            case 's':
+                max_file_size = std::stoi(optarg);
+                break;
+            case 'd':
+                max_dir_size = std::stoi(optarg);
+            case 'n':
+                boot_count = std::stoi(optarg);
+                boot_count_set = true;
+                break;
+            case 'f':
+                single_rotate_mode = true;
+                break;
+            default:
+                help(std::cerr);
+                exit(EXIT_FAILURE);
+                break;
+        }
+
+    }
+    if(!boot_count_set)
+    {
+        std::cerr << "Invalid configuration.\n";
+        help(std::cerr);
+        exit(EXIT_FAILURE);
+    }
+
+
     log_pattern default_log;
     default_log.boot_count = boot_count;
     default_log.prefix = "log";
@@ -91,24 +148,32 @@ int main(int argc, char const * argv[])
     ss << dir << '/' << default_log.active_name();
     std::string const full_path = ss.str();
     
-    std::cout << "Managing " << full_path << " in dir " << dir << " with maxsize " << max_file_size << " and " << max_dir_size << '\n';
-    
-    while(1) 
-    {
-        { //Open a new scope for RAII. We want the ifd destructor to close the file descriptors. 
-            inotify_fd ifd(full_path, IN_CLOSE);
-            ifd.wait();
-        }
 
-        if(file_size(full_path) > max_file_size)
+    if(single_rotate_mode)
+    {
+        rotate(dir, boot_count);
+    }
+    else
+    {
+        std::cout << "Managing " << full_path << " in dir " << dir << " with maxsize " << max_file_size << " and " << max_dir_size << '\n';
+        
+        while(1) 
         {
-            std::cout << "File is too big. Rotating\n";
-            rotate(dir, boot_count);
-        }
-        while(dir_size(dir) > max_dir_size)
-        {
-            std::cout << "Directory is too big. Rotating\n";
-            delete_oldest(dir);
+            { //Open a new scope for RAII. We want the ifd destructor to close the file descriptors. 
+                inotify_fd ifd(full_path, IN_CLOSE);
+                ifd.wait();
+            }
+
+            if(file_size(full_path) > max_file_size)
+            {
+                std::cout << "File is too big. Rotating\n";
+                rotate(dir, boot_count);
+            }
+            while(dir_size(dir) > max_dir_size)
+            {
+                std::cout << "Directory is too big. Rotating\n";
+                delete_oldest(dir);
+            }
         }
     }
 }
