@@ -25,6 +25,7 @@
  *
  * busyrotate assumes the system time is corrupt, and starts over at each
  * power cycle.
+ *
  */
 log_pattern find_oldest_file(std::string dir)
 {
@@ -34,12 +35,10 @@ log_pattern find_oldest_file(std::string dir)
 
     dirlist(dir, pusher(q));
     auto t = q.top();
-    std::cout << "Found: " << t.name();
     while(t.is_active)
     {
         q.pop();
         t = q.top();
-        std::cout << "Found: " << t.name();
     }
     return t;
 }
@@ -70,7 +69,6 @@ void rotate(std::string dir, size_t boot_count)
 void delete_oldest(std::string dir)
 {
     auto f = find_oldest_file(dir);
-    std::cout << "Deleting: " << f.name() << '\n';
     remove((dir+"/"+f.name()).c_str());
 }
 
@@ -83,7 +81,7 @@ int main(int argc, char const * argv[])
 
 
     if(max_dir_size < max_file_size)
-        throw std::logic_error("Files size are inconsistant.");
+        throw std::logic_error("Files size are inconsistant. max_dir must be > max_file");
 
     size_t const boot_count = std::stoi(argv[4]);
     log_pattern default_log;
@@ -93,7 +91,7 @@ int main(int argc, char const * argv[])
     ss << dir << '/' << default_log.active_name();
     std::string const full_path = ss.str();
     
-    std::cout << "Managing " << full_path << " in dir " << dir << " with maxsize " << max_file_size << '\n';
+    std::cout << "Managing " << full_path << " in dir " << dir << " with maxsize " << max_file_size << " and " << max_dir_size << '\n';
     
     while(1) 
     {
@@ -101,7 +99,6 @@ int main(int argc, char const * argv[])
             inotify_fd ifd(full_path, IN_CLOSE);
             ifd.wait();
         }
-        std::cout << "Wakup" << std::endl;
 
         if(file_size(full_path) > max_file_size)
         {

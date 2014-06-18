@@ -17,7 +17,6 @@ size_t dir_size(std::string dir)
     if(dir == ".." || dir == ".")
         return 0;
 
-    std::cout << "Dir: " << dir << "\n";
     d = opendir(dir.c_str());
     if (d == NULL) {
         perror("prsize");
@@ -39,7 +38,6 @@ size_t dir_size(std::string dir)
         }
     }
     closedir(d);
-    std::cout << dir << " size " << total_size << '\n';
     return total_size;
 }
 
@@ -56,6 +54,5 @@ size_t file_size(std::string f)
     } else {
         total_size = sb.st_size;
     }
-    std::cout << f << " size " << total_size << '\n';
     return total_size;
 }
