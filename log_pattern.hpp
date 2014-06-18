@@ -3,6 +3,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <vector>
+#include <iomanip>
 
 namespace {
 
@@ -105,14 +106,14 @@ struct log_pattern {
         else
         {
             std::stringstream ss;
-            ss << active_name() <<  '.' << sequence_number;
+            ss << active_name() <<  '.' << std::setfill('0') << std::setw(4) << sequence_number;
             return ss.str();
         }
     }
     std::string active_name() const
     {
         std::stringstream ss;
-        ss << prefix << '.' << boot_count;
+        ss << prefix << '.' << std::setfill('0') << std::setw(6) << boot_count;
         return ss.str();
     }
 

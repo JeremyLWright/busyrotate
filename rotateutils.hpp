@@ -52,7 +52,7 @@ void dirlist(std::string dir, OutputIterator i)
 
     d = opendir(dir.c_str());
     if (d == NULL) {
-        perror("prsize");
+        perror("dir_list");
         exit(1);
     }
 

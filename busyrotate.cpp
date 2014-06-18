@@ -51,19 +51,29 @@ log_pattern find_greatest_index(std::string dir, size_t boot_count)
             [&](log_pattern const & a){ return a.boot_count != boot_count; });
     d.resize(it - std::begin(d));
         
-
+    if(d.size() == 0)
+        throw std::out_of_range("No file available.");
+        
     return *std::max_element(std::begin(d), std::end(d));
 }
 
 void rotate(std::string dir, size_t boot_count)
 {
-    log_pattern m = find_greatest_index(dir, boot_count);
-    std::stringstream ss;
-    ss << m.prefix << "." << m.boot_count;
-    log_pattern new_name(m);
-    new_name.is_active = false;
-    ++new_name.sequence_number;
-    rename( (dir+"/"+ss.str()).c_str(), (dir+"/"+new_name.name()).c_str());
+    try 
+    {
+        log_pattern m = find_greatest_index(dir, boot_count);
+        std::stringstream ss;
+        ss << m.prefix << '.' << std::setfill('0') << std::setw(6) << m.boot_count;
+        log_pattern new_name(m);
+        new_name.is_active = false;
+        ++new_name.sequence_number;
+        rename( (dir+"/"+ss.str()).c_str(), (dir+"/"+new_name.name()).c_str());
+    } 
+    catch(std::out_of_range const & e)
+    {
+        //File not found.
+        //Nothing to rotate.
+    }
 }
 
 void delete_oldest(std::string dir)
@@ -83,6 +93,7 @@ void help(std::ostream& o)
     o << "	-d SIZE		Max size (KB) of directory before rotation. (default: 2000KB)\n";
     o << "\t-n NUM      \tNumber to identify this boot count. (required)\n";
     o << "	-f          \tRotate a single file and exit.\n";
+    o << "	-g          \tReturn the log file name and exit.\n";
     o << "\n";
     o << "Example\n";
     o << "# Manage the /var/log/messages directory rotate. Rotate files on 10 MB, and keep directory under 256 MB\n";
@@ -105,8 +116,9 @@ int main(int argc, char * const argv[])
     size_t boot_count = 0;
     bool boot_count_set = false;
     bool single_rotate_mode = false;
+    bool output_filename_mode = false;
     int opt;
-    const char * opts = "O:s:d:n:f";
+    const char * opts = "O:s:d:n:fg";
     while((opt = getopt(argc, argv, opts)) != -1)
     {
         switch(opt)
@@ -115,16 +127,19 @@ int main(int argc, char * const argv[])
                 dir = std::string(optarg);
                 break;
             case 's':
-                max_file_size = std::stoi(optarg);
+                max_file_size = std::stoi(optarg)*1024;
                 break;
             case 'd':
-                max_dir_size = std::stoi(optarg);
+                max_dir_size = std::stoi(optarg)*1024;
             case 'n':
                 boot_count = std::stoi(optarg);
                 boot_count_set = true;
                 break;
             case 'f':
                 single_rotate_mode = true;
+                break;
+            case 'g':
+                output_filename_mode = true;
                 break;
             default:
                 help(std::cerr);
@@ -152,6 +167,10 @@ int main(int argc, char * const argv[])
     if(single_rotate_mode)
     {
         rotate(dir, boot_count);
+    }
+    else if(output_filename_mode)
+    {
+        std::cout << full_path << '\n';
     }
     else
     {
