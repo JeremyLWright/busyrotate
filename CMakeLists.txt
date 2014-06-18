@@ -4,6 +4,7 @@ set(CMAKE_CXX_FLAGS "-Wall -Werror -O3 -std=gnu++0x")
 include_directories(.)
 add_library(rotateutils STATIC rotateutils.cpp)
 add_executable(busyrotate busyrotate.cpp)
+target_link_libraries(busyrotate rotateutils)
 add_executable(dirdiff dirdiff.cpp)
 target_link_libraries(dirdiff rotateutils)
 

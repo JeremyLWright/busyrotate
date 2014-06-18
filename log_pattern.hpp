@@ -28,11 +28,16 @@ struct log_pattern {
     log_pattern():
         prefix(""),
         boot_count(0),
-        sequence_number(0)
+        sequence_number(0),
+        is_active(false)
     {
     }
-
-    log_pattern(std::string f)
+    
+    log_pattern(std::string f):
+        prefix(""),
+        boot_count(0),
+        sequence_number(0),
+        is_active(false)
     {
         std::vector<std::string> v;
         if(log_pattern::is_log_file(f, v))
@@ -41,12 +46,43 @@ struct log_pattern {
             boot_count = std::stoi(v[1]);
             sequence_number = std::stoi(v[2]);
         }
+        else if(v.size() == 2)
+        {
+            prefix = v[0];
+            boot_count = std::stoi(v[1]);
+            is_active = true; //This is the active rotation file
+        }
         else
         {
             throw std::logic_error("log is not properly formed");
         }
+        
+    }
 
-
+    log_pattern(char* f):
+        prefix(""),
+        boot_count(0),
+        sequence_number(0),
+        is_active(false)
+    {
+        std::vector<std::string> v;
+        if(log_pattern::is_log_file(f, v))
+        {
+            prefix = v[0];
+            boot_count = std::stoi(v[1]);
+            sequence_number = std::stoi(v[2]);
+        }
+        else if(v.size() == 2)
+        {
+            prefix = v[0];
+            boot_count = std::stoi(v[1]);
+            sequence_number = 0;
+            is_active = true; //This is the active rotation file
+        }
+        else
+        {
+            throw std::logic_error("log is not properly formed");
+        }
     }
 
     static bool is_log_file(std::string f, std::vector<std::string>& v)
@@ -60,11 +96,23 @@ struct log_pattern {
     std::string prefix;
     size_t boot_count;
     size_t sequence_number;
+    bool is_active;
 
     std::string name() const
     {
+        if(is_active)
+            return active_name();
+        else
+        {
+            std::stringstream ss;
+            ss << active_name() <<  '.' << sequence_number;
+            return ss.str();
+        }
+    }
+    std::string active_name() const
+    {
         std::stringstream ss;
-        ss << prefix << '.' << boot_count << '.' << sequence_number;
+        ss << prefix << '.' << boot_count;
         return ss.str();
     }
 

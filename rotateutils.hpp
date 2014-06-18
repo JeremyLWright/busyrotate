@@ -9,6 +9,36 @@
 #include <stdio.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <iterator>
+
+size_t dir_size(std::string dir);
+size_t file_size(std::string f);
+
+template <typename Container> 
+class push_iterator : 
+    public std::iterator<std::output_iterator_tag,void,void,void,void>
+{
+public:
+    explicit push_iterator(Container &c) : container(c) {}
+
+    push_iterator &operator*() {return *this;}
+    push_iterator &operator++() {return *this;}
+    push_iterator &operator++(int) {return *this;}
+
+    push_iterator &operator=(typename Container::const_reference value)
+    {
+         container.push(value);
+         return *this;
+    }
+private:
+    Container &container;
+};
+
+template <typename Container> 
+push_iterator<Container> pusher( Container & c ) 
+{ 
+    return push_iterator<Container>( c ); 
+}
 
 template <typename OutputIterator>
 void dirlist(std::string dir, OutputIterator i)
@@ -25,7 +55,6 @@ void dirlist(std::string dir, OutputIterator i)
         perror("prsize");
         exit(1);
     }
-
 
     for(readdir_r(d, &entry, &de); de != NULL; readdir_r(d, &entry, &de))
     {

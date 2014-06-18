@@ -11,118 +11,11 @@
 #include <string>
 #include <queue>
 #include "log_pattern.hpp"
-
-#define EVENT_SIZE  ( sizeof (struct inotify_event) )
-#define EVENT_BUF_LEN     ( 1024 * ( EVENT_SIZE + 16 ) )
-
-size_t file_size(std::string f)
-{
-    struct stat sb;
-    int exists;
-    size_t total_size = 0;
-    exists = stat(f.c_str(), &sb);
-    if (exists < 0) {
-        std::cerr << "Couldn't stat " << f << '\n';
-    } else {
-        total_size = sb.st_size;
-    }
-    std::cout << f << " size " << total_size << '\n';
-    return total_size;
-}
-
-size_t dir_size(std::string dir)
-{
-
-    DIR *d;
-    struct dirent *de;
-    size_t total_size;
-    struct dirent entry;
-    if(dir == ".." || dir == ".")
-        return 0;
-
-    std::cout << "Dir: " << dir << "\n";
-    d = opendir(dir.c_str());
-    if (d == NULL) {
-        perror("prsize");
-        exit(1);
-    }
-
-    total_size = 0;
-
-    for(readdir_r(d, &entry, &de); de != NULL; readdir_r(d, &entry, &de))
-    {
-        switch(de->d_type)
-        {
-            case DT_DIR:
-                total_size += dir_size(de->d_name);
-                break;
-            case DT_REG:
-                total_size += file_size(dir + "/" + std::string(de->d_name));
-                break;
-        }
-    }
-    closedir(d);
-    std::cout << dir << " size " << total_size << '\n';
-    return total_size;
-}
-
-struct inotify_fd {
-    inotify_fd(std::string filename, uint32_t flags):
-        fd(-1),
-        length(-1),
-        wd(-1)
-    {
-        /*creating the INOTIFY instance*/
-        fd = inotify_init();
-
-        /*checking for error*/
-        if ( fd < 0 ) {
-            perror( "inotify_init" );
-        }
-
-        //busybox syslog opens and closes the log file once per second. This
-        //allows one to delete the log file, and syslog will create a new one.
-        //This introduces a race condition for us. If we just rotated out the
-        //file, syslog hasn't create the new log file yet. We don't want to
-        //create the file, since syslog is really responsible for doing so.
-        //Instead we wait for the file to be created.
-        while(wd < 0)
-        {
-            wd = inotify_add_watch( fd, filename.c_str(), flags);
-            sleep(1); //Keep looking for the file. (busybox syslog will recreate it soon)
-        }
-    }
-
-    ~inotify_fd()
-    {
-        /*removing the “/tmp” directory from the watch list.*/
-        inotify_rm_watch( fd, wd );
-
-        /*closing the INOTIFY instance*/
-        close( fd );
-    }
-
-    void wait()
-    {
-        length = -1;
-        while(length < 0)
-        {
-            length = read( fd, buffer, EVENT_BUF_LEN );
-        
-            /*checking for error*/
-            if ( length < 0 ) {
-                perror( "read" );
-            }  
-        }
-    }
-
-    int fd;
-    int length;
-    int wd;
-    char buffer[EVENT_BUF_LEN];
+#include "inotify_fd.hpp"
+#include "rotateutils.hpp"
+#include <algorithm>
 
 
-};
 
 
 /**
@@ -133,46 +26,89 @@ struct inotify_fd {
  * busyrotate assumes the system time is corrupt, and starts over at each
  * power cycle.
  */
-std::string find_oldest_file(std::string dir)
+log_pattern find_oldest_file(std::string dir)
 {
-    std::queue<log_pattern> logs;
-    return ""; 
+    std::priority_queue<log_pattern,
+        std::vector<log_pattern>,
+        std::greater<log_pattern>> q;
+
+    dirlist(dir, pusher(q));
+    auto t = q.top();
+    std::cout << "Found: " << t.name();
+    while(t.is_active)
+    {
+        q.pop();
+        t = q.top();
+        std::cout << "Found: " << t.name();
+    }
+    return t;
 }
 
-void rotate(std::string dir)
+log_pattern find_greatest_index(std::string dir, size_t boot_count)
 {
+    std::vector<log_pattern> d;
+    dirlist(dir, std::back_inserter(d));
+    auto it = std::remove_if(std::begin(d), std::end(d),
+            [&](log_pattern const & a){ return a.boot_count != boot_count; });
+    d.resize(it - std::begin(d));
+        
+
+    return *std::max_element(std::begin(d), std::end(d));
+}
+
+void rotate(std::string dir, size_t boot_count)
+{
+    log_pattern m = find_greatest_index(dir, boot_count);
+    std::stringstream ss;
+    ss << m.prefix << "." << m.boot_count;
+    log_pattern new_name(m);
+    new_name.is_active = false;
+    ++new_name.sequence_number;
+    rename( (dir+"/"+ss.str()).c_str(), (dir+"/"+new_name.name()).c_str());
 }
 
 void delete_oldest(std::string dir)
 {
+    auto f = find_oldest_file(dir);
+    std::cout << "Deleting: " << f.name() << '\n';
+    remove((dir+"/"+f.name()).c_str());
 }
 
 int main(int argc, char const * argv[])
 {
-    std::string raw_filename(argv[1]);
-    std::string raw_dirname(argv[1]);
-    std::string const filename(argv[1]);
-    std::string const dir(dirname(const_cast<char*>(argv[1])));
-    size_t const maximum_size = std::stoi(argv[2]);
+
+    std::string const dir(argv[1]);
+    size_t const max_dir_size = std::stoi(argv[2]);
     size_t const max_file_size = std::stoi(argv[3]);
 
 
-    std::cout << "Managing " << filename << " in dir " << dir << " with maxsize " << maximum_size << '\n';
+    if(max_dir_size < max_file_size)
+        throw std::logic_error("Files size are inconsistant.");
+
+    size_t const boot_count = std::stoi(argv[4]);
+    log_pattern default_log;
+    default_log.boot_count = boot_count;
+    default_log.prefix = "log";
+    std::stringstream ss;
+    ss << dir << '/' << default_log.active_name();
+    std::string const full_path = ss.str();
+    
+    std::cout << "Managing " << full_path << " in dir " << dir << " with maxsize " << max_file_size << '\n';
     
     while(1) 
     {
-        {
-            inotify_fd ifd(filename, IN_CLOSE);
+        { //Open a new scope for RAII. We want the ifd destructor to close the file descriptors. 
+            inotify_fd ifd(full_path, IN_CLOSE);
             ifd.wait();
         }
-        std::cout << "Wake up.\n";
+        std::cout << "Wakup" << std::endl;
 
-        if(file_size(filename) > max_file_size)
+        if(file_size(full_path) > max_file_size)
         {
             std::cout << "File is too big. Rotating\n";
-            rotate(dir);
+            rotate(dir, boot_count);
         }
-        if(dir_size(dir) > maximum_size)
+        while(dir_size(dir) > max_dir_size)
         {
             std::cout << "Directory is too big. Rotating\n";
             delete_oldest(dir);

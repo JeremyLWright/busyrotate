@@ -4,22 +4,22 @@
 
 TEST(log_pattern, parsing)
 {
-    log_pattern a("log.12.13");
+    log_pattern a(std::string("log.12.13"));
     ASSERT_EQ(a.boot_count, (size_t)12);
     ASSERT_EQ(a.sequence_number, (size_t)13);
 }
 
 TEST(log_pattern, seq)
 {
-    log_pattern a("log.0.1");
-    log_pattern b("log.0.2");
+    log_pattern a(std::string("log.0.1"));
+    log_pattern b(std::string("log.0.2"));
     ASSERT_TRUE(a < b);
-}
+}   
 
 TEST(log_pattern, queue)
 {
-    log_pattern a("log.1.12");
-    log_pattern b("log.2.23");
+    log_pattern a(std::string("log.1.12"));
+    log_pattern b(std::string("log.2.23"));
     std::priority_queue<log_pattern,
         std::vector<log_pattern>,
         std::greater<log_pattern>> q;
