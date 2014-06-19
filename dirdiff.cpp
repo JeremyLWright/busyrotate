@@ -27,6 +27,7 @@ void help(std::ostream& o)
     o << " -a DIR    Directory a. output = set(a) - set(b)\n";
     o << " -b DIR    Directory b. output = set(a) - set(b)\n";
     o << " -p str    Optional String to strip from file names.\n";
+    o << " -i str    Optional String to only include files who include this substring\n";
 }
 
 std::string strip_pattern(std::string& s, std::string& pattern)
@@ -47,11 +48,12 @@ int main(int argc, char * const argv[])
     std::string dir1;
     std::string dir2;
     std::string pattern("");
+    std::string include_pattern("");
 
     std::vector<std::string> d1;
     std::vector<std::string> d2;
 
-    const char * opts = "a:b:p:";
+    const char * opts = "a:b:p:i:";
     int opt;
     while((opt = getopt(argc, argv, opts)) != -1)
     {
@@ -65,6 +67,9 @@ int main(int argc, char * const argv[])
                 break;
             case 'p':
                 pattern = std::string(optarg);
+                break;
+            case 'i':
+                include_pattern = std::string(optarg);
                 break;
             default:
                 help(std::cerr);
@@ -85,6 +90,12 @@ int main(int argc, char * const argv[])
     else
     {
         a = d1;
+    }
+
+    if(include_pattern != "")
+    {
+        auto i = std::remove_if(std::begin(a), std::end(a), [&](std::string s){ return s.find(include_pattern) == std::string::npos; });
+        a.resize(i - std::begin(a));
     }
 
     dirlist(dir2, std::back_inserter(d2));
@@ -113,7 +124,7 @@ int main(int argc, char * const argv[])
             );
 
     for(auto& i : diff)
-        std::cout << i << '\n';
+        std::cout << dir1 << '/' << i << '\n';
 
 
     return 0;
